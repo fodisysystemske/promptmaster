@@ -1,1 +1,1 @@
-
+"""Training drills for PROMPTMASTER."""
