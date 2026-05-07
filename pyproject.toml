@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "promptmaster-livebook"
+version = "2.1.0"
+description = "PROMPTMASTER 2.0 — dual-stream Live Book, totem engine, and agent training CLI"
+readme = "README_PROMPTMASTER.md"
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+authors = [{ name = "Abel Kiurire" }]
+keywords = ["ai-agents", "devops", "secops", "mcp", "totem", "livebook"]
+dependencies = []
+
+[project.scripts]
+promptmaster = "promptmaster_training.cli:main"
+
+[project.urls]
+Homepage = "https://example.invalid/replace-with-your-repo"
+
+[tool.setuptools]
+packages = ["promptmaster_training"]
