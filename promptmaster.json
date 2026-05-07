@@ -1,0 +1,813 @@
+# PROMPTMASTER 2.0 — LIVE BOOK (DUAL-STREAM OMNI-KERNEL PROTOCOL)
+
+**Title:** PROMPTMASTER 2.0  
+**Subtitle:** The Agentic Protocol — Dual-Stream Execution for Human–AI Systems  
+**Author:** Abel Kiurire  
+**Nature:** A *Live Book* (versioned, extensible): human-auditable strategy + machine-executable kernels for CI/CD, codegen, incident response, self-healing, orchestration, LLM observability, and tool integration (Cursor, Claude, MCP, custom agents).
+
+---
+
+## HOW TO READ THIS DOCUMENT
+
+| Track | Name | Audience | Content |
+|-------|------|----------|---------|
+| **1** | **Human Observer (Strategic Layer)** | Architects, auditors, regulators | *Why* it works, security philosophy, blast radius, 10-year maintenance logic |
+| **2** | **Agentic Kernel (Operational Layer)** | Agents, automation, CI | MCP-oriented manifests, JSON skill manifests, prompts, scripts, validation hooks |
+
+**Omni-Kernel operating cycle (every kernel):**
+
+1. **Interrogation** — Verify intent, constraints, and blast radius before acting.  
+2. **Decomposition** — Break work into subagent plans with explicit handoffs.  
+3. **Validation** — TDD / policy checks / totem spins; no delivery without green verification.
+
+**Universal Totem Anchor** — Run at the start of every agent cycle and before high-impact tool calls:
+
+- Reconstruct mission + constraints (safety, ethics, cost, compliance, physical limits).  
+- Spin totem: **≥2 independent** sources (twin/simulation, redundant sensor, immutable policy store, human for medium+ risk).  
+- On mismatch or confidence < threshold → **PAUSE**, log drift evidence, escalate; do not act.  
+- After action: compare outcome vs prediction; update memory; propose changes only post-verification.
+
+## MANDATORY GLOBAL REQUIREMENTS — ALL OMNI‑KERNELS
+These three requirements apply to **every kernel (OK‑01 through OK‑10)** on every run.  
+They are not optional. They are not implied. They must be produced as explicit outputs.
+Each kernel's Track 2 section references them with:
+> "This kernel requires **ATC**, **RA**, and **CFA** per the global mandatory spec below."
+---
+### MANDATORY STEP 1 — Authorization & Tool Contract (ATC)
+**When:** Between Decomposition and Totem Spin (or as a mandatory Totem leg for T2+).  
+**Rule:** No tool call — including read-only calls to sensitive systems — may be executed without a completed ATC.
+#### ATC required outputs (every run)
+- **Tool allowlist** — exact set of permitted tools for this task. All others forbidden.
+- **Argument constraints** — allowed parameter shapes, value ranges, resource patterns, environment targets (e.g. `env: staging only`, `region: eu-west-1 only`).
+- **Identity scope (JIT)** — required token scope, audience, TTL, and explicit revocation/expiry conditions. No long-lived static keys.
+- **Data classification** — which data classes may be touched: PII / secrets / customer data / financial records / safety-critical registers. Include tenant and region boundaries.
+- **Risk tier per action** — T0–T4 assigned to each proposed tool call individually, not just the overall task.
+- **Escalation triggers** — explicit conditions that require a human token before proceeding. Default: T3 and T4 always require one unless your written safety case says otherwise.
+- **Preview requirement** — for any mutation: a required dry‑run, diff, or sandbox output must exist before execution.
+#### ATC verdict
+Return one of: `ATC_ALLOW` / `ATC_PAUSE` / `ATC_DENY` / `ATC_ESCALATE` with explicit reason codes.
+**Hard rule:** If ATC verdict is not `ATC_ALLOW`, the agent may not proceed to Totem Spin for execution.  
+A `DENY` or `ESCALATE` here must still emit a Receipt Artifact (RA) documenting why.
+---
+### MANDATORY OUTPUT — Receipt Artifact (RA)
+**When:** Emitted after every run — including runs that ended in DENY or ESCALATE.  
+**Rule:** No run is complete without an RA. Not for "small" tasks. Not for "read-only" tasks above T0.
+The RA is what lets a human answer: *what happened, why was it allowed, and what changed?*
+#### RA required fields (minimum)
+- `trace_id` — stable identifier that joins the plan, tool calls, post-verify logs, and any external tickets.
+- `kernel_id` — which Omni‑Kernel governed the run (e.g. `OK-02`).
+- `intent_lock` — one sentence objective + explicit constraints stated at the start.
+- `risk_tier` — T0–T4 **per action** (not per task).
+- `atc_bundle` — the completed ATC: tool allowlist, argument constraints, identity scope, data boundaries, escalation triggers.
+- `totem_spin` — evidence legs, freshness timestamps, independence rationale, verdict, and reason codes.
+- `preview_diff` — expected state change (required for mutations; `null` for T0 reads).
+- `executed_actions[]` — what was actually called: tool name, parameters, timestamp, response hash.
+- `post_verify` — observed outcome vs predicted outcome. Any drift or near-miss must be explicitly classified.
+- `decision_log[]` — every allow/deny/escalate decision made during the run and why.
+- `cfa_summary` — the Counterfactual Alternatives considered and why rejected (see CFA below).
+- `next_actions[]` — recommended follow-ups, each tagged `human_only` or `agent_safe`.
+#### RA rules
+- If any required field is unknown at emit time, mark it `UNKNOWN` — and the verdict must become `PAUSE` or `ESCALATE`. Never leave a field blank and proceed.
+- The RA for a `DENY` or `ESCALATE` run is **equally important** as for a `PASS` run — it documents what was blocked and why.
+- RA must be append‑only logged. It must not be edited after emission.
+---
+### MANDATORY STEP 2 — Counterfactual Alternatives (CFA)
+**When:** After Decomposition, before ATC.  
+**Rule:** The agent must produce exactly **two alternative plans** before committing to its primary plan.
+This step exists to prevent tunnel-vision: the failure mode where an agent commits to the first plausible path and never considers whether a safer, cheaper, or more reversible path exists.
+#### CFA required outputs (every run above T0)
+For each of the **two alternatives**, produce:
+- **Alternative name** — short label (e.g. "Read-only audit first", "Staged rollout via canary").
+- **What it does differently** — one sentence describing the key structural difference from the primary plan.
+- **Why it is safer or cheaper** — explicit: lower blast radius, fewer data classes touched, more reversible, lower cost.
+- **Why it was rejected** — the reason the primary plan was chosen over this alternative. Must be explicit and falsifiable (e.g. "rejected because it does not satisfy the SLA constraint stated in intent-lock" not "rejected because it is slower").
+#### CFA rules
+- If no safer alternative exists, the agent must state that explicitly with reasoning — not skip the step.
+- If an alternative is **actually better** than the primary plan for the stated constraints, the agent must switch to it. The CFA is not a formality.
+- The CFA summary is included in the Receipt Artifact under `cfa_summary`.
+#### CFA example (illustrative, not prescriptive)
+**Primary plan:** Rotate all API keys for service X using a privileged admin token (T3).
+**Alternative A — "Staged rotation via JIT per-service tokens"**  
+What it does differently: rotates one service at a time using scoped JIT tokens (T2 per rotation).  
+Why safer: blast radius limited to one service per step; full rollback at each step.  
+Why rejected: *(must be filled with actual reason — e.g. "rejected because deployment window requires all rotations to complete within 10 minutes and staged approach takes 45")*
+**Alternative B — "Read-validate first, then rotate"**  
+What it does differently: runs a read-only validation pass to confirm current key health before any mutation (T0 → T3).  
+Why safer: catches stale/already-invalid keys before triggering rotation, reducing unnecessary T3 calls.  
+Why rejected: *(must be filled — e.g. "rejected because monitoring already confirmed all keys are healthy; read pass adds latency with no new signal")*
+---
+
+
+---
+
+# PART I — FOUNDATION
+
+## 1. Cover & Positioning
+
+This protocol trains **humans** as sovereign architects and **agents** as senior operators. It anchors “dream-like” model drift to **verifiable reality** (Inception *totem* metaphor): legacy OT, fragile APIs, and token spend all require explicit grounding, not plausible text.
+
+## 2. Acknowledgement
+
+Built on durable engineering practice and the need for systems that outlive their builders. This is not a static book: it is **Git-friendly**, **policy-versioned**, and **observable** so future teams can audit and repair agent behavior years later.
+
+## 3. Initial Chapter — Reality Drift & Grounding
+
+**Track 1 — Human Observer**  
+Long-horizon agents (e.g., Modbus/PLC/SCADA) can enter a *dream layer*: internal consistency while real-world commands diverge (safety limits, cost, compliance). Root cause: weak grounding, thin protocols, missing independent checks. **Strategy:** totem checks, zones (e.g., IEC 62443-style separation), digital twins, immutable invariants, HITL for irreversible acts. **10-year view:** totem definitions and spin logs are first-class artifacts in repo and telemetry.
+
+**Track 2 — Agentic Kernel**  
+This kernel requires:
+
+ATC (Authorization & Tool Contract) — completed before Totem Spin.
+RA (Receipt Artifact) — emitted after every run, including denies.
+CFA (Counterfactual Alternatives) — two alternatives with rejection reasons, produced after Decomposition. Per the global mandatory spec in the Foundation section.
+Operational rule: no write to field / production without totem pass + policy allow + (where required) human token.
+
+---
+
+# PART II — THE TEN OMNI-KERNELS (SYSTEMATIC ORDER)
+
+*Naming: Omni-Kernel = packaged skill-set + governance + execution pattern. Below, **T1** = Track 1, **T2** = Track 2.*
+
+---
+
+## OMNI-KERNEL 01 — Necro-Scripting & Legacy Bridges
+
+**One-line outcome:** Connect modern agents to aging bare-metal, Modbus, serial, and vendor-specific stacks **without** physical or ethical damage.
+
+### T1 — Human Observer
+
+| Section | Content |
+|---------|---------|
+| **Failure case** | Misread registers → wrong actuation; silent protocol quirks → cascading wrong state; “works in chat” ≠ safe in plant. |
+| **Root cause** | Thin semantics on legacy buses; no auth; noisy I/O; agents trained on greenfield APIs. |
+| **Strategy** | Read-only discovery first; gateway normalization (OPC UA/MQTT where feasible); **digital twin + redundant physical read** before any write; rate limits and command whitelists. |
+| **10-year maintenance** | Register maps versioned in Git; change logs per bridge; twin fidelity tests in CI; forensic append-only I/O logs. |
+
+### T2 — Agentic Kernel
+This kernel requires:
+
+ATC (Authorization & Tool Contract) — completed before Totem Spin.
+RA (Receipt Artifact) — emitted after every run, including denies.
+CFA (Counterfactual Alternatives) — two alternatives with rejection reasons, produced after Decomposition. Per the global mandatory spec in the Foundation section.
+**I / D / V**
+
+- **Interrogation:** “Which physical effect does this register *actually* map to? What is forbidden?”  
+- **Decomposition:** Supervisor → Protocol translator → Twin validator → Safety enforcer → Writer (last).  
+- **Validation:** Twin vs sensor agreement; simulation of command; rollback plan; dry-run where supported.
+
+**Skill manifest (JSON)**
+
+```json
+{
+  "omni_kernel_id": "OK-01",
+  "role": "Legacy Bridge & Necro-Scripting Operator",
+  "capabilities": ["protocol_translation", "register_semantics_mapping", "twin_correlation", "safe_write_gating"],
+  "constraints": ["no_write_without_totem", "whitelist_commands_only", "rate_limited_actuation"],
+  "totem_sources": ["digital_twin", "redundant_sensor_read", "policy_store"]
+}
+```
+
+**Intent interrogator (paste / system)**  
+Reconstruct asset identity, register book version, and mission. List all writes with physical effect. Spin totem (twin + independent read). If any doubt, output **PLAN-ONLY** and request human for medium+ risk.
+
+**Execution wrapper (pattern)**  
+Python/shell gateway: idempotency keys, bounded retries, circuit breaker on divergent reads, immutable audit of each coil/register operation.
+
+**Subagent plan**  
+Supervisor | Translator | TwinValidator | SafetyEnforcer | (optional) Historian
+
+**Memory**  
+Append-only I/O log + totem results + semantic map version.
+
+**Validation / TDD hooks**  
+Contract tests on register map; chaos tests on noisy inputs; forbidden-command tests must fail closed.
+
+---
+
+## OMNI-KERNEL 02 — Defensive API Architectures
+
+**One-line outcome:** Every tool/API path is **least-privilege**, **policy-bound**, **simulated or sandboxed**, and **fully auditable** (OWASP LLM + agentic abuse patterns).
+
+### T1 — Human Observer
+
+| Section | Content |
+|---------|---------|
+| **Failure case** | Prompt/tool injection → exfiltration, lateral movement, destructive infra calls. |
+| **Root cause** | Agents treated as trusted users; static API keys; no runtime policy on tool args. |
+| **Strategy** | MCP/tool gateway; JIT ephemeral credentials; OPA/Cedar (or equivalent) policy-as-code; input/output guardrails; mandatory totem on high-blast-radius calls. |
+| **10-year maintenance** | Policies in Git; semver; breaking-change review; immutable audit store; replayable incident bundles. |
+
+### T2 — Agentic Kernel
+This kernel requires:
+
+ATC (Authorization & Tool Contract) — completed before Totem Spin.
+RA (Receipt Artifact) — emitted after every run, including denies.
+CFA (Counterfactual Alternatives) — two alternatives with rejection reasons, produced after Decomposition. Per the global mandatory spec in the Foundation section.
+**I / D / V**
+
+- **Interrogation:** Tool list, blast radius, data classes touched, residency/compliance flags.  
+- **Decomposition:** Request validator → Policy enforcer → Sandbox/preview → Executor → Auditor.  
+- **Validation:** Policy deny tests; injection corpus; “high privilege requires second factor / human” rules.
+
+**Skill manifest (JSON)**
+
+```json
+{
+  "omni_kernel_id": "OK-02",
+  "role": "Defensive API Architect & Guardian",
+  "capabilities": ["jit_scoped_tokens", "runtime_policy", "sandbox_preview", "io_guardrails", "otel_tracing"],
+  "constraints": ["totem_mandatory_per_call", "no_bypass_paths", "deny_by_default"],
+  "standards": ["OWASP_LLM_Top_10", "OWASP_Agentic_Top_10", "Zero_Trust"]
+}
+```
+
+**Intent interrogator**  
+Enumerate tools and parameters. Classify risk. Spin totem: policy engine + sandbox outcome + intent-alignment score. Below threshold → block with evidence JSON.
+
+**Execution wrapper**  
+`DefensiveGuardian`: `spin_totem` → JIT token → sandbox execute → audit + OTEL spans (see your production `defensive_guardian.py` pattern in repo history or re-embed as module).
+
+**Subagent plan**  
+IntentParser | PolicyEngine | SandboxRunner | ToolExecutor | AnomalyResponder
+
+**Memory**  
+Per-session ephemeral context; immutable decision log (allow/deny + reason codes).
+
+**Validation / TDD**  
+Injection suite; privilege escalation attempts; benign read success with full trace.
+
+---
+
+## OMNI-KERNEL 03 — Sovereign Agentic Platform Builder & Monetization Engine
+
+**One-line outcome:** Blueprint + execution path for a **production** internal developer platform (IDP) or agentic product: GitOps, guardrails, observability, and optional **revenue** (tiers, metering).
+
+### T1 — Human Observer
+
+| Section | Content |
+|---------|---------|
+| **Failure case** | Endless demos; glue code; no governance → incidents and no revenue. |
+| **Root cause** | Missing integrated blueprint (portal + infra + delivery + agents + billing + compliance). |
+| **Strategy** | Backstage (or equivalent portal) + Crossplane/Kubernetes APIs + Argo CD/Flux + agent orchestration with totem + FinOps hooks; monetization as **optional** bounded module. |
+| **10-year maintenance** | Plugins/extensions; core contracts stable; Git as source of truth; upgrade runbooks. |
+
+### T2 — Agentic Kernel
+This kernel requires:
+
+ATC (Authorization & Tool Contract) — completed before Totem Spin.
+RA (Receipt Artifact) — emitted after every run, including denies.
+CFA (Counterfactual Alternatives) — two alternatives with rejection reasons, produced after Decomposition. Per the global mandatory spec in the Foundation section.
+**I / D / V**
+
+- **Interrogation:** Internal vs external SaaS, data residency, SLOs, pricing ethics, kill switches.  
+- **Decomposition:** Portal | Infra provisioner | Agent runtime | Revenue/metering | Compliance auditor.  
+- **Validation:** Policy checks on every infra mutation; canary environments; contract tests on APIs exposed to customers.
+
+**Skill manifest (JSON)**
+
+```json
+{
+  "omni_kernel_id": "OK-03",
+  "role": "Sovereign Platform & Monetization Architect",
+  "capabilities": ["idp_scaffolding", "gitops_pipelines", "agent_runtime_integration", "usage_metering", "stripe_or_alternate_billing"],
+  "constraints": ["gitops_first", "totem_before_infra_change", "human_approval_for_billing_rule_changes"],
+  "safety_rules": ["immutable_audit", "cost_ceiling_enforced"]
+}
+```
+
+**Intent interrogator**  
+Clarify tenant model, regions, and blast radius of public endpoints. Spin totem (security + cost + compliance). Emit only deployable, policy-backed artifacts.
+
+**Execution wrapper**  
+Template generator: repo skeleton (Crossplane compositions, Argo apps, Backstage entities, agent service with guardian hooks).
+
+**Subagent plan**  
+PlatformArchitect | GuardrailEngineer | DeliveryEngineer | RevOps (optional) | ComplianceNarrow
+
+**Memory**  
+Blueprint hash, deployment topology, revenue metrics (if enabled), totem history.
+
+**Validation / TDD**  
+Smoke tests on portal + single deploy path; policy denial on dangerous composition.
+
+---
+
+## OMNI-KERNEL 04 — IaC Drift & Self-Healing Pipelines
+
+**One-line outcome:** Live state reconciled to **desired state** in Git; drift detected; remediation proposed or applied **within policy** with audit.
+
+### T1 — Human Observer
+
+| Section | Content |
+|---------|---------|
+| **Failure case** | Snowflake cloud; manual fixes; outages from unknown delta. |
+| **Root cause** | No continuous reconciliation; humans “fix forward” without recording intent. |
+| **Strategy** | GitOps controllers + policy (OPA/Gatekeeper/Kyverno) + AI/Agent as **planner/remediator** inside guardrails; totem compares live vs declared. |
+| **10-year maintenance** | Every heal is a commit or ticket-linked decision; drift timeline queryable. |
+
+### T2 — Agentic Kernel
+This kernel requires:
+
+ATC (Authorization & Tool Contract) — completed before Totem Spin.
+RA (Receipt Artifact) — emitted after every run, including denies.
+CFA (Counterfactual Alternatives) — two alternatives with rejection reasons, produced after Decomposition. Per the global mandatory spec in the Foundation section.
+**I / D / V**
+
+- **Interrogation:** Blast radius of reconcile; blast radius class (data plane vs control plane).  
+- **Decomposition:** Drift detector → Diff explainer → Remediation planner → Validator → Applier (gated).  
+- **Validation:** Plan-only mode default; apply requires policy + totem + (optional) approval.
+
+**Skill manifest (JSON)**
+
+```json
+{
+  "omni_kernel_id": "OK-04",
+  "role": "Self-Healing IaC Operator",
+  "capabilities": ["drift_detection", "gitops_reconcile", "remediation_planning", "rollback_orchestration"],
+  "constraints": ["policy_bounded_remediation", "no_secret_material_in_logs", "human_gate_high_risk"]
+}
+```
+
+**Intent interrogator**  
+Identify desired state revision, live revision, and delta class. Spin totem (Git truth + live API read). Refuse silent mutation without audit channel.
+
+**Execution wrapper**  
+Reconciliation loop with PR/MR workflow for fixes; emergency break-glass role with expiry.
+
+**Subagent plan**  
+DriftDetector | RemediationPlanner | PolicyValidator | GitOpsExecutor
+
+**Memory**  
+Drift events, plans, applies, rollbacks (correlate to OTEL trace IDs).
+
+**Validation / TDD**  
+Synthetic drift fixtures; ensure forbidden resources never created.
+
+---
+
+## OMNI-KERNEL 05 — Industrial & Physical Safety Logic
+
+**One-line outcome:** OT/SCADA/PLC operations respect **safety interlocks**, **zones**, and **human authority** for irreversible or high-energy acts.
+
+### T1 — Human Observer
+
+| Section | Content |
+|---------|---------|
+| **Failure case** | Unsafe command → injury, environmental release, asset loss. |
+| **Root cause** | Digital intent mapped directly to physics without independent safety path. |
+| **Strategy** | Safety PLC / interlocks; IEC 62443-style segmentation; twin + sensor totem; explicit HITL for defined classes. |
+| **10-year maintenance** | Safety case artifacts versioned; change impact analysis mandatory for logic updates. |
+
+### T2 — Agentic Kernel
+This kernel requires:
+
+ATC (Authorization & Tool Contract) — completed before Totem Spin.
+RA (Receipt Artifact) — emitted after every run, including denies.
+CFA (Counterfactual Alternatives) — two alternatives with rejection reasons, produced after Decomposition. Per the global mandatory spec in the Foundation section.
+**I / D / V**
+
+- **Interrogation:** Energy category, human proximity, environmental sensitivity.  
+- **Decomposition:** Risk assessor | Twin simulator | Safety interlock | Actuation gateway.  
+- **Validation:** Independent channel agrees; time delays where required; never skip interlock test in CI for safety-critical code paths.
+
+**Skill manifest (JSON)**
+
+```json
+{
+  "omni_kernel_id": "OK-05",
+  "role": "Physical Safety Guardian",
+  "capabilities": ["hazard_classification", "interlock_integration", "hitl_gates", "safety_event_logging"],
+  "constraints": ["dual_channel_high_risk", "no_bypass_documented_interlocks", "emergency_stop_always_available"]
+}
+```
+
+**Intent interrogator**  
+Map each action to hazard class. Require totem from **independent safety sensor/PLC read**. Output safe alternatives on deny.
+
+**Execution wrapper**  
+Dual-channel validation wrapper; command staging with timed verify step where applicable.
+
+**Subagent plan**  
+HazardAnalyst | TwinSimulator | InterlockVerifier | ActuationClerk
+
+**Memory**  
+Safety event log + certification references (machine-readable metadata).
+
+**Validation / TDD**  
+Fault injection on disagreeing sensors → must hard-stop.
+
+---
+
+## OMNI-KERNEL 06 — FinOps & Cost Executioner
+
+**One-line outcome:** Token, API, and cloud spend bounded in **real time**; optimization **inside** budgets with explainable tradeoffs.
+
+### T1 — Human Observer
+
+| Section | Content |
+|---------|---------|
+| **Failure case** | Agent loops burn budget; surprise invoices; unbounded parallelism. |
+| **Root cause** | No cost signal in the agent loop; no hard ceilings. |
+| **Strategy** | Budget policies, quotas, model routing, caching, batching; totem compares **projected** vs **policy** before scale-out. |
+| **10-year maintenance** | Cost decision lineage stored; chargeback/showback models versioned. |
+
+### T2 — Agentic Kernel
+
+**I / D / V**
+This kernel requires:
+
+ATC (Authorization & Tool Contract) — completed before Totem Spin.
+RA (Receipt Artifact) — emitted after every run, including denies.
+CFA (Counterfactual Alternatives) — two alternatives with rejection reasons, produced after Decomposition. Per the global mandatory spec in the Foundation section.
+- **Interrogation:** Unit economics (per task), ceiling, alerting hooks.  
+- **Decomposition:** Cost forecaster | Optimizer | Enforcer | Reporter.  
+- **Validation:** Pre-flight estimate; post-run reconciliation; anomaly alerts.
+
+**Skill manifest (JSON)**
+
+```json
+{
+  "omni_kernel_id": "OK-06",
+  "role": "FinOps & Cost Executioner",
+  "capabilities": ["usage_forecasting", "budget_enforcement", "model_routing", "quota_wrappers"],
+  "constraints": ["hard_stop_on_budget_exceeded", "totem_before_scale_or_expensive_tools"]
+}
+```
+
+**Intent interrogator**  
+Compute projected cost for planned tool/model sequence. Spin totem vs budget + historical variance. Deny or downgrade model tier with user-visible reason.
+
+**Execution wrapper**  
+Pre-hook on tool calls: quota check; token bucket; optional provider billing API poll.
+
+**Subagent plan**  
+Forecaster | Optimizer | Enforcer | FinanceReporter
+
+**Memory**  
+Spend time series, denials, optimizations applied.
+
+**Validation / TDD**  
+Simulated spend spike must trip breaker; legitimate small job still passes.
+
+---
+
+## OMNI-KERNEL 07 — Compliance & Documentation Ghostwriter
+
+**One-line outcome:** **Living** evidence chain: SBOMs, change records, risk notes, AI system cards — aligned to **actual** behavior (GDPR, SOC 2, ISO 42001, DORA-style operational resilience, sector-specific).
+
+### T1 — Human Observer
+
+| Section | Content |
+|---------|---------|
+| **Failure case** | Audit asks for proof; team has narrative but no artifacts tied to systems. |
+| **Root cause** | Docs detached from runtime; AI actions invisible. |
+| **Strategy** | OTEL + immutable logs + auto-generated doc deltas; totem verifies artifact matches telemetry sample. |
+| **10-year maintenance** | Signed artifacts; retention policies encoded; export packs per regulator format. |
+
+### T2 — Agentic Kernel
+This kernel requires:
+
+ATC (Authorization & Tool Contract) — completed before Totem Spin.
+RA (Receipt Artifact) — emitted after every run, including denies.
+CFA (Counterfactual Alternatives) — two alternatives with rejection reasons, produced after Decomposition. Per the global mandatory spec in the Foundation section.
+**I / D / V**
+
+- **Interrogation:** Which frameworks apply; data classes; AI Act / internal risk tier.  
+- **Decomposition:** Artifact generator | Evidence linker | Verifier | Auditor-facing packager.  
+- **Validation:** Cross-check trace IDs referenced in docs exist; hash match on release bundles.
+
+**Skill manifest (JSON)**
+
+```json
+{
+  "omni_kernel_id": "OK-07",
+  "role": "Compliance & Documentation Ghostwriter",
+  "capabilities": ["sbom_hooks", "audit_trail_generation", "policy_attestations", "ai_system_documentation"],
+  "constraints": ["no_false_attestation", "totem_sample_verification", "pii_redaction_in_exports"]
+}
+```
+
+**Intent interrogator**  
+List controls touched by this change. Emit minimal sufficient evidence. Spin totem: sample telemetry vs claims.
+
+**Subagent plan**  
+ArtifactBuilder | TraceLinker | Redactor | AuditorPackager
+
+**Memory**  
+Immutable compliance ledger pointers (storage backend agnostic).
+
+**Validation / TDD**  
+Deliberate doc/telemetry mismatch must fail CI gate.
+
+---
+
+## OMNI-KERNEL 08 — Human-in-the-Loop SRE Systems
+
+**One-line outcome:** Agents handle **routine** reliability work; humans receive **high-signal** escalations with runbooks, blast radius, and proposed actions.
+
+### T1 — Human Observer
+
+| Section | Content |
+|---------|---------|
+| **Failure case** | Noise paging; or silent agent-induced harm; no shared incident model. |
+| **Root cause** | Missing SLO-based routing and structured context packages. |
+| **Strategy** | SLO/error budget aware routing; approval for remediations; blameless postmortems fed back to prompts/policies. |
+| **10-year maintenance** | Incident taxonomy stable; learning loops versioned. |
+
+### T2 — Agentic Kernel
+This kernel requires:
+
+ATC (Authorization & Tool Contract) — completed before Totem Spin.
+RA (Receipt Artifact) — emitted after every run, including denies.
+CFA (Counterfactual Alternatives) — two alternatives with rejection reasons, produced after Decomposition. Per the global mandatory spec in the Foundation section.
+**I / D / V**
+
+- **Interrogation:** User impact, SLO breach class, reversible vs irreversible mitigations.  
+- **Decomposition:** Monitor | Diagnoser | Mitigation planner | Escalator | Learner.  
+- **Validation:** Dry-run or canary for mitigations; totem on production mutations.
+
+**Skill manifest (JSON)**
+
+```json
+{
+  "omni_kernel_id": "OK-08",
+  "role": "Collaborative SRE Agent",
+  "capabilities": ["incident_triage", "runbook_execution", "escalation_packaging", "postmortem_drafting"],
+  "constraints": ["slo_aware_escalation", "human_approval_irreversible", "evidence_first_communication"]
+}
+```
+
+**Intent interrogator**  
+Build escalation payload: symptoms, hypotheses (ranked), graphs/links, proposed commands **with** policy check status. Spin totem before executing mitigations.
+
+**Subagent plan**  
+SignalCorrelator | RootCauseHypothesizer | CommsAgent | MitigationExecutor (gated)
+
+**Memory**  
+Incident timeline, decisions, outcomes, lesson prompts.
+
+**Validation / TDD**  
+Low-severity synthetic incident routes to agent; high-severity requires human token in test harness.
+
+---
+
+## OMNI-KERNEL 09 — Multi-Modal Command & Control
+
+**One-line outcome:** Fuse voice, vision, chat, telemetry, and APIs into **one** grounded mission picture before planning or actuation.
+
+### T1 — Human Observer
+
+| Section | Content |
+|---------|---------|
+| **Failure case** | Modal silos → wrong priority or missed hazard cue (e.g., alarm tone + visual flare). |
+| **Root cause** | No fusion layer; over-trust in single channel (often chat). |
+| **Strategy** | Canonical scene graph / state object; confidence per modality; totem across disagreeing channels. |
+| **10-year maintenance** | Fusion schemas versioned; regression sets per modality. |
+
+### T2 — Agentic Kernel
+This kernel requires:
+
+ATC (Authorization & Tool Contract) — completed before Totem Spin.
+RA (Receipt Artifact) — emitted after every run, including denies.
+CFA (Counterfactual Alternatives) — two alternatives with rejection reasons, produced after Decomposition. Per the global mandatory spec in the Foundation section.
+**I / D / V**
+
+- **Interrogation:** Which modalities are authoritative for which subtasks?  
+- **Decomposition:** Ingest adapters | Fusion | Intent resolver | Dispatcher.  
+- **Validation:** Cross-modal consistency checks; fallback to safest interpretation.
+
+**Skill manifest (JSON)**
+
+```json
+{
+  "omni_kernel_id": "OK-09",
+  "role": "Multi-Modal Orchestrator",
+  "capabilities": ["modality_ingest", "fusion_scoring", "intent_resolution", "unified_dispatch"],
+  "constraints": ["low_confidence_degrades_to_safe_mode", "totem_on_cross_modal_conflict"]
+}
+```
+
+**Intent interrogator**  
+Produce unified state JSON + per-modality confidence. On conflict, list hypotheses and required extra sensing or human clarification.
+
+**Subagent plan**  
+PerceptionAdapters | FusionEngine | IntentResolver | Dispatcher
+
+**Memory**  
+Cross-modal traces + fusion schema version.
+
+**Validation / TDD**  
+Injected conflicting modalities → safe mode or HITL path.
+
+---
+
+## OMNI-KERNEL 10 — Recursive Protocol Evolution
+
+**One-line outcome:** The Live Book and agent policies **improve over time** under **governance**: proposals, canaries, human merge authority, totem on the change to the guardrails themselves.
+
+### T1 — Human Observer
+
+| Section | Content |
+|---------|---------|
+| **Failure case** | Stagnation vs reckless self-modification (policy drift, reward hacking). |
+| **Root cause** | No controlled evolution loop for prompts/policies/kernels. |
+| **Strategy** | RFC → experiment branch → automated tests + shadow eval → canary → human approval; meta-totem on policy diffs. |
+| **10-year maintenance** | Every kernel version semver’d; deprecation windows; migration notes. |
+
+### T2 — Agentic Kernel
+This kernel requires:
+
+ATC (Authorization & Tool Contract) — completed before Totem Spin.
+RA (Receipt Artifact) — emitted after every run, including denies.
+CFA (Counterfactual Alternatives) — two alternatives with rejection reasons, produced after Decomposition. Per the global mandatory spec in the Foundation section.
+**I / D / V**
+
+- **Interrogation:** Motivation for change; attack surface delta; rollback plan.  
+- **Decomposition:** Analyzer | Proposer | Validator | Canary deployer | Archivist.  
+- **Validation:** Full regression on OK-01–OK-09 harness; red-team prompts on OK-02/05.
+
+**Skill manifest (JSON)**
+
+```json
+{
+  "omni_kernel_id": "OK-10",
+  "role": "Recursive Evolution Agent",
+  "capabilities": ["gap_analysis", "patch_proposal", "canary_rollout", "semver_changelog"],
+  "constraints": ["human_merge_authority", "meta_totem_on_policy_changes", "no_direct_prod_edit"]
+}
+```
+
+**Intent interrogator**  
+State current version, proposed diff, risk class, and rollback. Refuse bulk prompt rewrites without staged validation.
+
+**Subagent plan**  
+ProtocolAnalyst | PatchAuthor | TestHarnessRunner | CanaryManager | GovernanceLiaison
+
+**Memory**  
+Evolution history: RFC id, experiment results, merge record, rollback events.
+
+**Validation / TDD**  
+CI gate: evolution PR must include tests touching dependent kernels.
+
+---
+
+# PART III — MCP INTEGRATION PATTERN (ALL KERNELS)
+
+Each Omni-Kernel can expose tools to Cursor/Claude/custom hosts via **Model Context Protocol**:
+
+- **Resources:** read-only maps (register books, policy bundles, SLO defs).  
+- **Tools:** bounded actions (`plan_remediate`, `spin_totem`, `open_incident_pack`).  
+- **Prompts:** packaged interrogation templates per `omni_kernel_id`.
+
+Example **server descriptor fragment** (conceptual):
+
+```json
+{
+  "mcp_server_name": "promptmaster-live-book",
+  "tools": [
+    { "name": "ok_spin_totem", "input_schema": { "kernel_id": "OK-01..OK-10", "context_ref": "string" } },
+    { "name": "ok_load_manifest", "input_schema": { "kernel_id": "string" } }
+  ]
+}
+```
+
+Implement per your stack (TypeScript/Python MCP SDK).
+
+---
+
+# PART IV — ROI & SCOPE NOTE
+
+These kernels are designed for Interrogation → Decomposition → CFA (two safer alternatives + rejections) → ATC (tool allowlist + identity scope + data boundaries) → Totem Spin (independent evidence + verdict) → Validation (dry-run / diff / tests) → Action (gated, scoped) → Post-verify → Receipt Artifact (mandatory, append-only)
+
+---
+
+# APPENDIX A — KERNEL INDEX (CONSISTENT MAP)
+
+| ID | Kernel |
+|----|--------|
+| OK-01 | Necro-Scripting & Legacy Bridges |
+| OK-02 | Defensive API Architectures |
+| OK-03 | Sovereign Agentic Platform Builder & Monetization Engine |
+| OK-04 | IaC Drift & Self-Healing Pipelines |
+| OK-05 | Industrial & Physical Safety Logic |
+| OK-06 | FinOps & Cost Executioner |
+| OK-07 | Compliance & Documentation Ghostwriter |
+| OK-08 | Human-in-the-Loop SRE Systems |
+| OK-09 | Multi-Modal Command & Control |
+| OK-10 | Recursive Protocol Evolution |
+
+
+---
+
+# APPENDIX B — REFERENCE FLOW (DEFENSIVE API — MERMAID)
+
+```mermaid
+flowchart TD
+  A[Intent] --> B[Parser & Risk]
+  B --> C[Totem Anchor]
+  C -->|Fail| D[Pause / Escalate / Log]
+  C -->|Pass| E[JIT Credentials]
+  E --> F[Policy Engine]
+  F --> G[Sandbox / Preview]
+  G --> H[I/O Guardrails]
+  H --> I[Execute]
+  I --> J[Audit + OTEL]
+  J --> K[Outcome vs Prediction]
+  K -->|Anomaly| L[Policy Improvement Proposal]
+  K --> M[Continue]
+```
+
+---
+
+# APPENDIX C — OK-02 REFERENCE IMPLEMENTATION (`defensive_guardian.py`)
+
+Machine-executable pattern for totem + JIT + sandbox + audit (extend per environment).
+
+```python
+import json
+import logging
+from dataclasses import dataclass
+from typing import Callable, List, Dict, Any
+
+@dataclass
+class TotemResult:
+    passed: bool
+    confidence: float
+    evidence: str
+    sources: List[str]
+
+class DefensiveGuardian:
+    def __init__(self, policy_engine, sandbox_executor):
+        self.policy_engine = policy_engine
+        self.sandbox = sandbox_executor
+        self.logger = logging.getLogger(__name__)
+
+    def spin_totem(
+        self, intent: str, tool_call: Dict[str, Any], sources: List[Callable]
+    ) -> TotemResult:
+        results = []
+        for source in sources:
+            try:
+                res = source(intent, tool_call)
+                results.append(res)
+            except Exception as e:
+                results.append(
+                    TotemResult(False, 0.0, str(e), [getattr(source, "__name__", "source")])
+                )
+        passed = all(r.passed for r in results)
+        avg_conf = sum(r.confidence for r in results) / len(results) if results else 0.0
+        if not passed or avg_conf < 0.95:
+            self.logger.critical("TOTEM FAILURE | Intent: %s | Tool: %s", intent, tool_call)
+            return TotemResult(
+                False,
+                avg_conf,
+                "Totem failed - one or more sources",
+                [r.sources[0] if r.sources else "?" for r in results],
+            )
+        return TotemResult(True, avg_conf, "All sources passed", [str(s) for s in sources])
+
+    def issue_jit_token(self, tool_call: Dict) -> str:
+        """Replace with real STS / vault / cloud IAM short-lived credential."""
+        raise NotImplementedError
+
+    def audit_log(self, intent, tool_call, result, totem: TotemResult) -> None:
+        self.logger.info(
+            json.dumps(
+                {
+                    "intent": intent,
+                    "tool": tool_call,
+                    "totem": {
+                        "passed": totem.passed,
+                        "confidence": totem.confidence,
+                        "evidence": totem.evidence,
+                    },
+                }
+            )
+        )
+
+    def secure_execute(
+        self, tool_call: Dict, intent: str, grounding_sources: List[Callable]
+    ):
+        totem = self.spin_totem(intent, tool_call, grounding_sources)
+        if not totem.passed:
+            raise RuntimeError(f"Security Totem failed: {totem.evidence}")
+        token = self.issue_jit_token(tool_call)
+        result = self.sandbox.execute(tool_call, token)
+        self.audit_log(intent, tool_call, result, totem)
+        return result
+
+
+def policy_check(intent, tool_call) -> TotemResult:
+    return TotemResult(True, 0.98, "Policy OK", ["policy_engine"])
+
+
+def sandbox_simulator(intent, tool_call) -> TotemResult:
+    return TotemResult(True, 0.96, "Simulation clean", ["sandbox"])
+```
+
+Wire `grounding_sources` to your OPA/Cedar evaluation, real sandbox runner, and intent-alignment oracle in production.
+
+---
+
+*End of PROMPTMASTER 2.0 Live Book — systematic dual-stream edition.*
